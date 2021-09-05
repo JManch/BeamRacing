@@ -1,0 +1,24 @@
+{
+    "tracks": 
+      {
+        "spa": 
+          {
+            "capacity": 3,
+            "gridSlots":
+              {
+                "gridSlot1": [
+                  "position",
+                  "rotation"
+                  ],
+                "gridSlot2": [
+                  "position",
+                  "rotation"
+                  ],
+                "gridSlot3": [
+                  "position",
+                  "rotation"
+                  ]
+              }
+          }
+      }
+  }

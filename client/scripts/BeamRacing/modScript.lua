@@ -1,0 +1,2 @@
+load("BeamRacingClient")
+registerCoreModule("BeamRacingClient")
