@@ -13,15 +13,14 @@ local function SplitSpaces(s)
 end
 
 local function onBeamNGTrigger(data)
-    print("Trigger activated with name " .. data.triggerName)
-    if data.event == "enter" then
+    print("Trigger activated with name " .. data.triggerName .. " and data event " .. data.event)
+    if data.subjectID == be:getPlayerVehicleID(0) and data.event == "enter" then
         TriggerServerEvent("onClientPassedCheckpoint", data.triggerName)
     end
-    
 end
 
 local function teleportPlayer(position)
-    print("Teleport player was called")
+    print("Teleport player was called for vehicle ID " .. be:getPlayerVehicleID(0))
     local coords = SplitSpaces(position)
     vehicleSetPositionRotation(be:getPlayerVehicleID(0), coords[1], coords[2], coords[3], coords[4], coords[5], coords[6], coords[7])
 end
@@ -31,11 +30,10 @@ local function testEvent(data)
 end
 
 local function onExtensionLoaded()
-    print("Extension loaded")
+    print("BeamRacingClient loaded")
     AddEventHandler("teleportPlayer", teleportPlayer)
     AddEventHandler("testEvent", testEvent)
 end
-
 
 M.printText = printText
 M.onExtensionLoaded = onExtensionLoaded
