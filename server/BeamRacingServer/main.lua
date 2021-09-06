@@ -4,7 +4,7 @@ local M = {}
 
 local gridSlots = {{"-305.713 727.595 321.181", "0 0 0.959394 0.28207"}, {"-307.662 716.872 321.086", "0 0 0.959394 0.28207"}, {"-297.280 714.036 320.927", "0 0 0.959394 0.28207"}}
 local checkpointCount = 42
-local lapCount
+local lapCount = 0
 
 --{ {"lastest checkpoint", "last checkpoint", "skipped checkpoints", "laps completed"} }
 local playerTracker = {}
@@ -13,6 +13,7 @@ function onInit()
 	print("========== LOADED BEAM RACING =========")
 	RegisterEvent("onChatMessage", "OnChatMessage")
 	RegisterEvent("onPlayerJoin", "OnPlayerJoin")
+    RegisterEvent("onPlayerLeave", "OnPlayerLeave")
 	RegisterEvent("onClientPassedCheckpoint", "OnClientPassedCheckpoint")
 end
 
@@ -49,8 +50,8 @@ end
 local function getClientRacePosition(client)
     local temp = {}
     
-    for i, v in ipairs(playerTracker) do
-        table.insert(temp, {client = i - 1, player = v})
+    for i, v in pairs(playerTracker) do
+        table.insert(temp, {client = i, player = v})
     end
 
     table.sort(temp, playerPosComp)
@@ -64,6 +65,19 @@ local function getClientRacePosition(client)
     return nil
 end
 
+local function formatTime(seconds)
+    local minutes = math.floor((seconds // 60) + 0.5)
+    local seconds = math.floor((seconds - minutes * 60) + 0.5)
+
+    if(minutes == 0) then
+        return tostring(seconds) .. " seconds"
+    elseif minutes == 1 then
+        return tostring(minutes) .. " minute and " .. tostring(seconds) .. " seconds"
+    else
+        return tostring(minutes) .. " minutes and " .. tostring(seconds) .. " seconds"
+    end
+end
+
 local function onLapCompleted(client)
 
     -- Increment lap counter
@@ -71,17 +85,15 @@ local function onLapCompleted(client)
     playerTracker[client].lapsCompleted = lapsCompleted
     local racePosition = getClientRacePosition(client)
 
-    SendChatMessage(client, "Lap: " .. playerTracker[client].lapsCompleted ..  " Position: " .. (getClientRacePosition(client) or "Unknown"))
+    SendChatMessage(client, "Completed lap: " .. playerTracker[client].lapsCompleted ..  "/" .. (lapCount or "Unkown") .. " Lap time: " .. formatTime(os.clock() - playerTracker[client].lapStartTime))
 
     if(lapsCompleted == lapCount) then
         SendChatMessage(client, "This is your final lap!")
-
         if(racePosition == 1) then
             -- send massage to all other players saying leader is on final lap
             local name = GetPlayerName(client)
             print("Player " .. name .. " is on their final lap!")
             for playerID, playerName in pairs(players) do
-                
                 SendChatMessage(playerID, "Player " .. name .. " is on their final lap!")
             end
         end
@@ -99,17 +111,28 @@ local function onCheckpointSkipped(client, amountSkipped)
     playerTracker[client].skippedCheckpoints = playerTracker[client].skippedCheckpoints + amountSkipped
 end
 
+local function tablelength(T)
+    local count = 0
+    for _ in pairs(T) do count = count + 1 end
+    return count
+  end
+
 function OnClientPassedCheckpoint(client, data)
-	
-    print("Client " .. tostring(client) .. " passed checkpoint " .. data)
+
+    --[[
+    print("Table length is " .. tablelength(playerTracker))
+
+    for i, v in pairs(playerTracker) do
+        for j, v2 in pairs(v) do
+            print("Player " .. i .. " key " .. j .. " is " .. v2)
+        end
+    end
+    ]]--
+    print("Client " .. client .. " passed checkpoint " .. data)
     
     -- Initialise the player array if it does not exists. Only needed for debugging when the
     -- mod is reloaded whilst the player is on the server.
-    playerTracker[client] = playerTracker[client] or {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, racing = false}
-
-    if(playerTracker[client].racing == false) then
-        return
-    end
+    playerTracker[client] = playerTracker[client] or {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0}
 
     local latestCheckpoint = tonumber(data:sub(12))
     local lastCheckpoint = playerTracker[client].lastCheckpoint
@@ -138,8 +161,17 @@ function OnClientPassedCheckpoint(client, data)
         onLapCompleted(client)
     end 
 
+    -- Set lap start time if passing through start line
+    if latestCheckpoint == 1 then
+        playerTracker[client].lapStartTime = os.clock()
+    end
+
     -- Update last checkpoint
 	playerTracker[client].lastCheckpoint = latestCheckpoint
+
+    if(latestCheckpoint % 5 == 0) then
+        SendChatMessage(client, "You are in position " .. getClientRacePosition(client) .. " on lap " .. playerTracker[client].lapsCompleted .. "/" .. lapCount)
+    end
 
 	print("Client " .. tostring(client) .. " latest checkpoint is " .. playerTracker[client].latestCheckpoint .. " last checkpoint is " .. playerTracker[client].lastCheckpoint .. " skipped checkpoints is " .. (playerTracker[client].skippedCheckpoints))
 end
@@ -152,10 +184,16 @@ local function teleportPlayer(playerID, posandrot)
 	TriggerClientEvent(playerID, "teleportPlayer", coords[1] .. " " .. coords[2] .. " " .. coords[3] .. " " .. coords[4] .. " " .. coords[5] .. " " .. coords[6] .. " " .. coords[7])
 end
 
+local function setPlayerFreeze(playerID, freeze)
+    TriggerClientEvent(playerID, "setPlayerFreeze", freeze)
+end
+
 local function resetPlayerTracker()
-    for i, player in ipairs(playerTracker) do
-        for j, var in ipairs(player) do
-            player[j] = 0
+    print("Resetting tracker")
+    for i, player in pairs(playerTracker) do
+        for j, var in pairs(player) do
+            print("Resetting player " .. i .. " variable " .. j)
+            player.j = 0
         end
     end
 end
@@ -166,11 +204,15 @@ local function gridLineup()
 	for playerID, playerName in pairs(players) do
 		print("Teleporting player id " .. playerID)
 		teleportPlayer(playerID, gridSlots[playerID + 1][1] .. " " .. gridSlots[playerID + 1][2])
+        setPlayerFreeze(playerID, 1)
 	end
+end
 
-    for i, player in ipairs(playerTracker) do
-        player.racing = true
-    end
+local function unFreezePlayers()
+    local players = GetPlayers()
+    for playerID, playerName in pairs(players) do
+		setPlayerFreeze(playerID, 0)
+	end
 end
 
 local function startRace(laps)
@@ -179,19 +221,28 @@ local function startRace(laps)
     resetPlayerTracker()
 	gridLineup()
 
+    SendChatMessage(-1, "Starting a " .. lapCount .. " lap race")
 	SendChatMessage(-1, "Race countdown about to start!")
-	--Sleep(3000)
+	Sleep(5000)
 	SendChatMessage(-1, "3")
-	--Sleep(3000)
+	Sleep(1000)
 	SendChatMessage(-1, "2")
-	--Sleep(3000)
+	Sleep(1000)
 	SendChatMessage(-1, "1")
+    Sleep(1000)
+    SendChatMessage(-1, "Go!")
+
+    unFreezePlayers()
 end
 
 function OnPlayerJoin(playerID)
 	print("Player just joined with ID " .. playerID)
-    SendChatMessage(-1, "Someone just joined!")
-	playerTracker[playerID] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, racing = false}
+    --SendChatMessage(-1, "Someone just joined!")
+	playerTracker[playerID] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0}
+end
+
+function OnPlayerLeave(playerID)
+    print("Player with ID " .. playerID .. " left")
 end
 
 function OnChatMessage(playerID, senderName, message)
