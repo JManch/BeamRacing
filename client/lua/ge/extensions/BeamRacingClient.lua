@@ -12,6 +12,13 @@ local function SplitSpaces(s)
     return result;
 end
 
+
+local function updateLapUI(data)
+    -- format needs to be {current = 2, count = 3}
+    guihooks.trigger('RaceLapChange', data )
+    --be:queueLuaCommand('')
+end
+
 local function onBeamNGTrigger(data)
     print("Trigger activated with name " .. data.triggerName .. " and data event " .. data.event)
     if data.subjectID == be:getPlayerVehicleID(0) and data.event == "enter" then
@@ -53,5 +60,6 @@ M.teleportPlayer = teleportPlayer
 M.setPlayerFreeze = setPlayerFreeze
 M.testEvent = testEvent
 M.onBeamNGTrigger = onBeamNGTrigger
+M.updateLapUI = updateLapUI
 
 return M
