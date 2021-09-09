@@ -6,6 +6,7 @@ local clientControl = require("/Resources/Server/BeamRacingServer/clientControl"
 
 local playerTracker = {}
 local lapCount = 0
+local raceState = ""
 
 -------------------Race Util---------------------
 
@@ -77,6 +78,33 @@ local function registerPlayer(client)
     playerTracker[client] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0}
 end
 
+-- IMPROVE THIS
+local function deregisterPlayer(client)
+    playerTracker[client] = nil
+end
+
+local function raceCountdown()
+    SendChatMessage(-1, "Race countdown about to start!")
+	Sleep(5000)
+	SendChatMessage(-1, "3")
+	Sleep(1000)
+	SendChatMessage(-1, "2")
+	Sleep(1000)
+	SendChatMessage(-1, "1")
+    Sleep(1000)
+    SendChatMessage(-1, "Go!")
+end
+
+local function setLapUI(client, currentLap)
+    TriggerClientEvent(client, "setLapUI", currentLap .. " " .. lapCount)
+end
+
+local function resetRaceUI(players) 
+    for playerID, playerName in pairs(players) do
+		setLapUI(playerID, 0)
+	end
+end
+
 -------------------------------------------------
 
 
@@ -88,6 +116,9 @@ local function onLapCompleted(client)
     local lapsCompleted = playerTracker[client].lapsCompleted + 1
     playerTracker[client].lapsCompleted = lapsCompleted
     local racePosition = getClientRacePosition(client)
+
+    -- Update UI
+    setLapUI(client, lapsCompleted)
 
     SendChatMessage(client, "Completed lap: " .. playerTracker[client].lapsCompleted ..  "/" .. (lapCount or "Unkown") .. " Lap time: " .. utils.formatTime(os.clock() - playerTracker[client].lapStartTime))
 
@@ -174,16 +205,8 @@ function OnClientPassedCheckpoint(client, data)
 	print("Client " .. tostring(client) .. " latest checkpoint is " .. playerTracker[client].latestCheckpoint .. " last checkpoint is " .. playerTracker[client].lastCheckpoint .. " skipped checkpoints is " .. (playerTracker[client].skippedCheckpoints))
 end
 
-local function raceCountdown()
-    SendChatMessage(-1, "Race countdown about to start!")
-	Sleep(5000)
-	SendChatMessage(-1, "3")
-	Sleep(1000)
-	SendChatMessage(-1, "2")
-	Sleep(1000)
-	SendChatMessage(-1, "1")
-    Sleep(1000)
-    SendChatMessage(-1, "Go!")
+function OnRaceTimerEnd(timerType)
+    print("TIMER " .. timerType .. " ENDED")
 end
 
 -------------------------------------------------
@@ -194,7 +217,9 @@ end
 local function startRace(laps)
     local players = GetPlayers()
     lapCount = tonumber(laps)
+    raceState = "racing"
     resetPlayerTracker()
+    resetRaceUI()
     freezePlayers(players)
 	gridLineup(players)
     SendChatMessage(-1, "Starting a " .. lapCount .. " lap race")
@@ -202,13 +227,23 @@ local function startRace(laps)
     unFreezePlayers(players)
 end
 
+
+
+local function startQualifying(duration)
+    print("Starting qualifying with duration " .. duration)
+    raceState = "qualifying"
+    utils.startTimer(duration, "quali")
+end
+
 -------------------------------------------------
 
 function onInit()
     RegisterEvent("onClientPassedCheckpoint", "OnClientPassedCheckpoint")
+    RegisterEvent("OnTimerEnd", "OnRaceTimerEnd")
 end
 
 M.startRace = startRace
+M.startQualifying = startQualifying
 M.registerPlayer = registerPlayer
 
 return M

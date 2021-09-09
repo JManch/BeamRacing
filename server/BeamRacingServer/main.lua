@@ -8,6 +8,10 @@ function OnPlayerJoin(client)
     raceLogic.registerPlayer(client)
 end
 
+function OnPlayerDisconnect(client)
+	print("Player with ID " .. client .. " disconnected")
+end
+
 function OnChatMessage(client, senderName, message)
 	message = message:sub(2)
 	if(message:sub(1, 1) == "/") then
@@ -26,7 +30,10 @@ function OnChatMessage(client, senderName, message)
 			raceLogic.startRace(argument)
 		elseif command == "teleport" then
 			clientControl.teleportPlayer(client, argument)
-        end
+        elseif command == "quali" then
+			print("yo")
+			raceLogic.startQualifying(argument)
+		end
 	end
 end
 
@@ -34,6 +41,7 @@ function onInit()
 	print("Loaded BeamRacing")
 	RegisterEvent("onChatMessage", "OnChatMessage")
 	RegisterEvent("onPlayerJoin", "OnPlayerJoin")
+	RegisterEvent("onPlayerDisconnect", "OnPlayerDisconnect")
 end
 
 return M
