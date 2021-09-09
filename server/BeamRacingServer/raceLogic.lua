@@ -24,8 +24,6 @@ local function playerPosComp(p1, p2)
             return true
         end
     end
-
-    return nil
 end
 
 local function getClientRacePosition(client)
@@ -36,6 +34,34 @@ local function getClientRacePosition(client)
     end
 
     table.sort(temp, playerPosComp)
+
+    for i, v in ipairs(temp) do
+        if v.client == client then
+            return i
+        end
+    end
+
+    return nil
+end
+
+-- when p2 is better return false 
+local function playerLapComp(p1, p2)
+
+    if p2.fastestLapTime < p1.fastestLapTime then
+        return false
+    else
+        return true
+    end
+end
+
+local function getClientQualiPosition(client)
+    local temp = {}
+    
+    for i, v in pairs(playerTracker) do
+        table.insert(temp, {client = i, player = v})
+    end
+
+    table.sort(temp, playerLapComp)
 
     for i, v in ipairs(temp) do
         if v.client == client then
@@ -75,7 +101,7 @@ local function gridLineup(players)
 end
 
 local function registerPlayer(client)
-    playerTracker[client] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0}
+    playerTracker[client] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0, lastLapTime = 0, fastestLapTime = 0}
 end
 
 -- IMPROVE THIS
@@ -107,39 +133,100 @@ end
 
 -------------------------------------------------
 
+-------------------Race Control------------------
+
+local function startRace(laps)
+    local players = GetPlayers()
+    lapCount = tonumber(laps)
+    raceState = "racing"
+    resetPlayerTracker()
+    resetRaceUI()
+    freezePlayers(players)
+	gridLineup(players)
+    SendChatMessage(-1, "Starting a " .. lapCount .. " lap race")
+    raceCountdown()
+    unFreezePlayers(players)
+end
+
+
+-- Quali duration is in seconds
+local function startQualifying(duration)
+    print("Starting qualifying with duration " .. duration)
+    raceState = "qualifying"
+
+    -- Teleport all players to pit stops
+
+
+    utils.startTimer(duration, "quali")
+
+
+
+end
+
+local function endQualifying()
+    
+    -- Get fastest laps for each player
+end
+
+-------------------------------------------------
 
 -------------------Race Events-------------------
 
 local function onLapCompleted(client)
 
-    -- Increment lap counter
-    local lapsCompleted = playerTracker[client].lapsCompleted + 1
-    playerTracker[client].lapsCompleted = lapsCompleted
-    local racePosition = getClientRacePosition(client)
+    -- Need to check that the lap was actually a hotlap
+    playerTracker[client].lastLapTime = os.clock() - playerTracker[client].lapStartTime
+    if(playerTracker[client].fastestLapTime == 0) then
+        playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
+    elseif playerTracker[client].lastLapTime < playerTracker[client].fastestLapTime then
+        playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
+    end
 
-    -- Update UI
-    setLapUI(client, lapsCompleted)
+    if(raceState == "racing") then
+        -- Increment lap counter
+        local lapsCompleted = playerTracker[client].lapsCompleted + 1
+        playerTracker[client].lapsCompleted = lapsCompleted
+        local racePosition = getClientRacePosition(client)
 
-    SendChatMessage(client, "Completed lap: " .. playerTracker[client].lapsCompleted ..  "/" .. (lapCount or "Unkown") .. " Lap time: " .. utils.formatTime(os.clock() - playerTracker[client].lapStartTime))
+        -- Update UI
+        setLapUI(client, lapsCompleted)
 
-    if(lapsCompleted == lapCount) then
-        SendChatMessage(client, "This is your final lap!")
-        if(racePosition == 1) then
-            -- send massage to all other players saying leader is on final lap
-            local name = GetPlayerName(client)
-            local players = GetPlayers()
-            print("Player " .. name .. " is on their final lap!")
-            for playerID, playerName in pairs(players) do
-                SendChatMessage(playerID, "Player " .. name .. " is on their final lap!")
+        SendChatMessage(client, "Completed lap: " .. playerTracker[client].lapsCompleted ..  "/" .. (lapCount or "Unkown") .. " Lap time: " .. utils.formatTime(playerTracker[client].lastLapTime))
+
+        if(lapsCompleted == lapCount) then
+            SendChatMessage(client, "This is your final lap!")
+            if(racePosition == 1) then
+                -- send massage to all other players saying leader is on final lap
+                local name = GetPlayerName(client)
+                local players = GetPlayers()
+                print("Player " .. name .. " is on their final lap!")
+                for playerID, playerName in pairs(players) do
+                    SendChatMessage(playerID, "Player " .. name .. " is on their final lap!")
+                end
             end
         end
+
+        if(lapsCompleted == lapCount + 1) then
+            SendChatMessage("You finished the race in position " .. racePosition)
+        end
+
+        print("Client " .. client .. " completed a lap! They have completed " .. playerTracker[client].lapsCompleted .. " laps.")
+
+    elseif(raceState == "qualifying") then
+        
+        local qualiPosition = getClientQualiPosition(client)
+        if(lastLapTime == fastestLapTime) then
+            SendChatMessage(client, "You set a personal fastest lap with a " .. utils.formatTime(playerTracker[client].lastLapTime))
+        else 
+            SendChatMessage(client, "Your last lap was a " .. utils.formatTime(playerTracker[client].lastLapTime) .. " your fastest is a " .. utils.formatTime(playerTracker[client].fastestLapTime))
+        end
+
+        SendChatMessage("Your current qualifying position is P" .. qualiPosition .. ". Time remaining is: " .. utils.formatTime(utils.getTimeLeft()))
     end
 
-    if(lapsCompleted == lapCount + 1) then
-        SendChatMessage("You finished the race in position " .. racePosition)
-    end
+    
 
-    print("Client " .. client .. " completed a lap! They have completed " .. playerTracker[client].lapsCompleted .. " laps.")
+    
 end
 
 local function onCheckpointSkipped(client, amountSkipped)
@@ -207,32 +294,9 @@ end
 
 function OnRaceTimerEnd(timerType)
     print("TIMER " .. timerType .. " ENDED")
-end
-
--------------------------------------------------
-
-
--------------------Race Control------------------
-
-local function startRace(laps)
-    local players = GetPlayers()
-    lapCount = tonumber(laps)
-    raceState = "racing"
-    resetPlayerTracker()
-    resetRaceUI()
-    freezePlayers(players)
-	gridLineup(players)
-    SendChatMessage(-1, "Starting a " .. lapCount .. " lap race")
-    raceCountdown()
-    unFreezePlayers(players)
-end
-
-
-
-local function startQualifying(duration)
-    print("Starting qualifying with duration " .. duration)
-    raceState = "qualifying"
-    utils.startTimer(duration, "quali")
+    if(timerType == "quali") then
+        endQualifying()
+    end
 end
 
 -------------------------------------------------

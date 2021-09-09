@@ -22,6 +22,10 @@ local function startTimer(time, type)
     CreateThread("TimerRun", 1)
 end
 
+local function getTimeLeft()
+    return timerEnd - os.clock()
+end
+
 local function formatTime(seconds)
     local minutes = math.floor((seconds // 60) + 0.5)
     local seconds = math.floor((seconds - minutes * 60) + 0.5)
@@ -53,5 +57,6 @@ M.formatTime = formatTime
 M.tablelength = tablelength
 M.SplitSpaces = splitSpaces
 M.startTimer = startTimer
+M.getTimeLeft = getTimeLeft
 
 return M
