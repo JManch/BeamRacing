@@ -26,9 +26,9 @@ local function getTimeLeft()
     return timerEnd - os.clock()
 end
 
-local function formatTime(seconds)
-    local minutes = math.floor((seconds // 60) + 0.5)
-    local seconds = math.floor((seconds - minutes * 60) + 0.5)
+local function formatTime(time)
+    local minutes = math.floor((time // 60) + 0.5)
+    local seconds = math.floor((time - minutes * 60) + 0.5)
 
     if(minutes == 0) then
         return tostring(seconds) .. " seconds"
@@ -39,7 +39,7 @@ local function formatTime(seconds)
     end
 end
 
-local function tablelength(T)
+local function tableLength(T)
     local count = 0
     for _ in pairs(T) do count = count + 1 end
     return count
@@ -54,7 +54,7 @@ local function splitSpaces(s)
 end
 
 M.formatTime = formatTime
-M.tablelength = tablelength
+M.tableLength = tableLength
 M.SplitSpaces = splitSpaces
 M.startTimer = startTimer
 M.getTimeLeft = getTimeLeft

@@ -5,9 +5,10 @@ local utils = require("/Resources/Server/BeamRacingServer/utils")
 local function teleportClient(client, posandrot)
 	local coords = utils.SplitSpaces(posandrot)
 	
-	if(utils.tableLength(coords) ~= 6) then
-        return
-    end
+    print("Table length is " .. utils.tableLength(coords))
+	--if(utils.tableLength(coords) ~= 6) then
+      --  return
+    --end
     
 	TriggerClientEvent(client, "teleportPlayer", coords[1] .. " " .. coords[2] .. " " .. coords[3] .. " " .. coords[4] .. " " .. coords[5] .. " " .. coords[6] .. " " .. coords[7])
 end

@@ -12,7 +12,6 @@ local function splitSpaces(s)
     return result;
 end
 
-
 local function setLapUI(data)
     -- format needs to be {current = 2, count = 3}
     local lapData = splitSpaces(data)
@@ -42,7 +41,6 @@ local function teleportPlayer(position)
 
     -- First recover the vehicle in place
     be:getObjectByID(vehicleID):queueLuaCommand('recovery.recoverInPlace()')
-    --be:getObjectByID(be:getPlayerVehicleID(0)):queueLuaCommand('controller.setFreeze(1)')
 
     local coords = splitSpaces(position)
     vehicleSetPositionRotation(vehicleID, coords[1], coords[2], coords[3], coords[4], coords[5], coords[6], coords[7])

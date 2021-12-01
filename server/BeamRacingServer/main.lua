@@ -10,6 +10,7 @@ end
 
 function OnPlayerDisconnect(client)
 	print("Player with ID " .. client .. " disconnected")
+	raceLogic.deregisterPlayer(client)
 end
 
 function OnChatMessage(client, senderName, message)
@@ -42,6 +43,8 @@ function onInit()
 	RegisterEvent("onChatMessage", "OnChatMessage")
 	RegisterEvent("onPlayerJoin", "OnPlayerJoin")
 	RegisterEvent("onPlayerDisconnect", "OnPlayerDisconnect")
+
+	raceLogic.onInit()
 end
 
 return M

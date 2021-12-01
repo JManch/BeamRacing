@@ -4,6 +4,11 @@ local utils = require("/Resources/Server/BeamRacingServer/utils")
 local trackData = require("/Resources/Server/BeamRacingServer/trackData")
 local clientControl = require("/Resources/Server/BeamRacingServer/clientControl")
 
+local function onInit()
+    RegisterEvent("onClientPassedCheckpoint","OnClientPassedCheckpoint")
+    RegisterEvent("OnTimerEnd", "OnRaceTimerEnd")
+end
+
 local playerTracker = {}
 local lapCount = 0
 local raceState = ""
@@ -84,13 +89,13 @@ end
 
 local function freezePlayers(players)
     for playerID, playerName in pairs(players) do
-		clientControl.setPlayerFreeze(playerID, 1)
+		clientControl.setClientFreeze(playerID, 1)
 	end
 end
 
 local function unFreezePlayers(players)
     for playerID, playerName in pairs(players) do
-		clientControl.setPlayerFreeze(playerID, 0)
+		clientControl.setClientFreeze(playerID, 0)
 	end
 end
 
@@ -100,7 +105,14 @@ local function gridLineup(players)
 	end
 end
 
+local function pitLineup(players)
+    for playerID, playerName in pairs(players) do
+		clientControl.teleportPlayer(playerID, trackData.pitSlots[playerID + 1][1] .. " " .. trackData.gridSlots[playerID + 1][2])
+	end
+end
+
 local function registerPlayer(client)
+    print("Registering player " .. client)
     playerTracker[client] = {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0, lastLapTime = 0, fastestLapTime = 0}
 end
 
@@ -111,6 +123,19 @@ end
 
 local function raceCountdown()
     SendChatMessage(-1, "Race countdown about to start!")
+	Sleep(5000)
+	SendChatMessage(-1, "3")
+	Sleep(1000)
+	SendChatMessage(-1, "2")
+	Sleep(1000)
+	SendChatMessage(-1, "1")
+    Sleep(1000)
+    SendChatMessage(-1, "Go!")
+end
+
+local function qualiCountdown(duration)
+    SendChatMessage(-1, "Qualifying about to start!")
+    SendChatMessage(-1, "You will have " .. utils.formatTime(duration) .. " to set a fastest lap")
 	Sleep(5000)
 	SendChatMessage(-1, "3")
 	Sleep(1000)
@@ -133,6 +158,7 @@ end
 
 -------------------------------------------------
 
+
 -------------------Race Control------------------
 
 local function startRace(laps)
@@ -140,7 +166,7 @@ local function startRace(laps)
     lapCount = tonumber(laps)
     raceState = "racing"
     resetPlayerTracker()
-    resetRaceUI()
+    resetRaceUI(players)
     freezePlayers(players)
 	gridLineup(players)
     SendChatMessage(-1, "Starting a " .. lapCount .. " lap race")
@@ -151,20 +177,22 @@ end
 
 -- Quali duration is in seconds
 local function startQualifying(duration)
-    print("Starting qualifying with duration " .. duration)
+    local players = GetPlayers()
+    resetPlayerTracker()
+    SendChatMessage(-1, "Starting qualifying with duration " .. utils.formatTime(duration))
     raceState = "qualifying"
-
-    -- Teleport all players to pit stops
-
-
+    pitLineup(players)
+    freezePlayers(players)
+    qualiCountdown(duration)
+    unFreezePlayers(players)
     utils.startTimer(duration, "quali")
-
-
-
 end
 
 local function endQualifying()
-    
+    local players = GetPlayers()
+    SendChatMessage(-1, "Qualifying has ended")
+    pitLineup(players)
+    freezePlayers(players)
     -- Get fastest laps for each player
 end
 
@@ -174,14 +202,21 @@ end
 
 local function onLapCompleted(client)
 
+    print("Fastest lap value is " .. (playerTracker[client].fastestLapTime or "nil"))
+    print("Last lap value is " .. (playerTracker[client].lastLapTime or "nil"))
+
     -- Need to check that the lap was actually a hotlap
     playerTracker[client].lastLapTime = os.clock() - playerTracker[client].lapStartTime
-    if(playerTracker[client].fastestLapTime == 0) then
-        playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
-    elseif playerTracker[client].lastLapTime < playerTracker[client].fastestLapTime then
-        playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
+    if playerTracker[client].skippedCheckpoints == 0 then
+        if(playerTracker[client].fastestLapTime == 0) then
+            playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
+        elseif playerTracker[client].lastLapTime < playerTracker[client].fastestLapTime then
+            playerTracker[client].fastestLapTime = playerTracker[client].lastLapTime
+        end
     end
 
+    print("Race state is " .. (raceState or "nil"))
+    
     if(raceState == "racing") then
         -- Increment lap counter
         local lapsCompleted = playerTracker[client].lapsCompleted + 1
@@ -224,9 +259,8 @@ local function onLapCompleted(client)
         SendChatMessage("Your current qualifying position is P" .. qualiPosition .. ". Time remaining is: " .. utils.formatTime(utils.getTimeLeft()))
     end
 
-    
-
-    
+    -- Reset skipped checkpoints to 0
+    playerTracker[client].skippedCheckpoints = 0
 end
 
 local function onCheckpointSkipped(client, amountSkipped)
@@ -234,21 +268,15 @@ local function onCheckpointSkipped(client, amountSkipped)
     playerTracker[client].skippedCheckpoints = playerTracker[client].skippedCheckpoints + amountSkipped
 end
 
+
+
 function OnClientPassedCheckpoint(client, data)
 
-    --[[
-    print("Table length is " .. tablelength(playerTracker))
-
-    for i, v in pairs(playerTracker) do
-        for j, v2 in pairs(v) do
-            print("Player " .. i .. " key " .. j .. " is " .. v2)
-        end
-    end
-    ]]--
+    print("Race state is " .. raceState)
     print("Client " .. client .. " passed checkpoint " .. data)
     
     -- Initialise the player array if it does not exists. Only needed for debugging when the mod is reloaded whilst the player is on the server.
-    playerTracker[client] = playerTracker[client] or {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0}
+    --playerTracker[client] = playerTracker[client] or {latestCheckpoint = 0, lastCheckpoint = 0, skippedCheckpoints = 0, lapsCompleted = 0, lapStartTime = 0, lastLapTime = 0, fastestLapTime = 0}
 
     local latestCheckpoint = tonumber(data:sub(12))
     local lastCheckpoint = playerTracker[client].lastCheckpoint
@@ -293,7 +321,6 @@ function OnClientPassedCheckpoint(client, data)
 end
 
 function OnRaceTimerEnd(timerType)
-    print("TIMER " .. timerType .. " ENDED")
     if(timerType == "quali") then
         endQualifying()
     end
@@ -301,13 +328,11 @@ end
 
 -------------------------------------------------
 
-function onInit()
-    RegisterEvent("onClientPassedCheckpoint", "OnClientPassedCheckpoint")
-    RegisterEvent("OnTimerEnd", "OnRaceTimerEnd")
-end
-
+M.onInit = onInit
 M.startRace = startRace
 M.startQualifying = startQualifying
 M.registerPlayer = registerPlayer
+M.deregisterPlayer = deregisterPlayer
+M.raceState = raceState
 
 return M
